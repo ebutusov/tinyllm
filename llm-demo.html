@@ -1,0 +1,1268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiny LLM Lab</title>
+<style>
+  :root {
+    --bg: #0f1218; --panel: #171c26; --panel2: #1e2532; --line: #2b3444;
+    --text: #e4e8f0; --muted: #8b96aa; --accent: #6ea8fe; --accent2: #f5a962; --good: #5fd39a; --bad: #ef6b73;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 20px 18px 40px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  nav button, .lang button { background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+  nav button.on, .lang button.on { background: var(--accent); color: #0b0f16; border-color: var(--accent); }
+  /* Header row: title on the left, EN/PL language switch on the right. */
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .lang { display: flex; gap: 4px; }
+  .lang button { padding: 4px 10px; font-size: 13px; }
+  section[hidden] { display: none; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 0; }
+  section p.lead { color: var(--muted); margin: 0 0 10px; font-size: 14px; }
+  .step { display: inline-block; background: var(--accent); color: #0b0f16; font-weight: 700; border-radius: 6px; padding: 0 8px; margin-right: 8px; font-size: 14px; }
+  textarea, input[type=text] { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font: inherit; }
+  textarea { min-height: 64px; height: 64px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  button { background: var(--accent); color: #0b0f16; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 10px 0; }
+  .row label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+  .row label b { color: var(--text); min-width: 34px; display: inline-block; font-variant-numeric: tabular-nums; }
+  input[type=range] { accent-color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; }
+  .chip { font-family: ui-monospace, Consolas, monospace; font-size: 14px; padding: 2px 6px; border-radius: 5px; color: #0b0f16; white-space: pre; }
+  .stats { color: var(--muted); font-size: 13px; }
+  .stats b { color: var(--text); }
+  canvas { width: 100%; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  .out { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-height: 60px; font-size: 17px; }
+  .out .gen { color: var(--accent2); }
+  .bars { margin-top: 10px; }
+  .bar { display: grid; grid-template-columns: 90px 1fr 76px; gap: 8px; align-items: center; padding: 2px 4px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+  .bar:hover { background: var(--panel2); }
+  .bar .name { font-family: ui-monospace, Consolas, monospace; text-align: right; }
+  .bar .track { background: var(--panel2); height: 14px; border-radius: 4px; overflow: hidden; }
+  .bar .fill { height: 100%; background: var(--accent); }
+  .bar.cut .fill { background: #47506a; }
+  .bar.cut .name { color: var(--muted); text-decoration: line-through; }
+  .bar .pct { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .note { font-size: 13px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px; margin-top: 12px; }
+  code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .scroll { overflow-x: auto; }
+  details.explain { margin-top: 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 4px 14px 10px; font-size: 14px; }
+  details.explain summary { cursor: pointer; font-weight: 600; padding: 8px 0; color: var(--accent); }
+  details.explain h3 { font-size: 14px; margin: 14px 0 4px; color: var(--text); }
+  details.explain p { margin: 4px 0; color: #c3cad8; }
+  details.explain ol, details.explain ul { margin: 4px 0; padding-left: 22px; color: #c3cad8; }
+  details.explain li { margin: 3px 0; }
+  details.explain .try { border-left: 3px solid var(--accent2); padding-left: 10px; margin-top: 12px; color: #c3cad8; }
+  .zoombtns { display: inline-flex; gap: 6px; }
+  .zoombtns button { padding: 3px 10px; }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>Tiny LLM Lab</h1>
+    <!-- Language switch. The buttons are wired up in the i18n section of the script. -->
+    <div class="lang" role="group" aria-label="Language / Język">
+      <button data-lang="en" class="on" title="English">EN</button>
+      <button data-lang="pl" title="Polski">PL</button>
+    </div>
+  </header>
+  <p class="sub" data-i18n="sub">A language model built from scratch in ~500 lines of JavaScript, running entirely in your browser. Each section shows one core idea behind models like GPT and Claude, at toy scale.</p>
+
+  <nav id="tabs"></nav>
+
+  <section>
+    <h2><span class="step">1</span><span data-i18n="h.tok">Tokenization (byte-pair encoding)</span></h2>
+    <p class="lead" data-i18n="lead.tok">Models don't read letters or words; they read <em>tokens</em>. BPE starts with single characters and repeatedly merges the most frequent adjacent pair. Slide to see how more merges turn characters into word pieces.</p>
+    <input type="text" id="tokInput" value="the cat chased the mouse in the garden.">
+    <div class="row">
+      <label><span data-i18n="l.merges">Merges applied</span> <input type="range" id="mergeSlider" min="0" max="100" value="30"><b id="mergeVal">30</b></label>
+    </div>
+    <div class="chips" id="tokChips"></div>
+    <div class="stats" id="tokStats"></div>
+    <div class="note" data-i18n="note.tok">Real models learn ~100k merges from terabytes of text. Here the merges are learned from the tiny corpus in the Training tab, so words it has seen compress well and unseen ones fall back to characters.</div>
+
+    <details class="explain" open data-i18n="ex.tok">
+      <summary>How this works, in depth</summary>
+      <h3>Why tokens at all?</h3>
+      <p>A neural network only handles numbers, so text must first be cut into pieces that each get an integer ID. Splitting into whole words needs a gigantic vocabulary and fails on any word it hasn't seen. Splitting into single characters never fails, but sequences become very long and each character carries little meaning. <strong>Sub-word tokens</strong> are the compromise: common words become one token, rare words are assembled from several pieces, and nothing is ever "unknown".</p>
+      <h3>How byte-pair encoding learns its vocabulary</h3>
+      <ol>
+        <li>Split the corpus into words (a word keeps its leading space, shown as <code>␣</code>) and write each word as a list of characters.</li>
+        <li>Count every pair of neighbouring symbols across the whole corpus, weighted by how often each word occurs.</li>
+        <li>Take the most frequent pair (it must occur at least twice) and merge it into one new symbol everywhere. Record the merge.</li>
+        <li>Repeat. Each pass adds one symbol to the vocabulary; the ordered list of merges <em>is</em> the tokenizer.</li>
+      </ol>
+      <p>To encode new text, start from characters and replay the recorded merges in the same order. That is exactly what the slider does: it replays only the first <em>k</em> merges.</p>
+      <h3>What you are seeing</h3>
+      <ul>
+        <li><strong>0 merges:</strong> one token per character (the longest possible sequence, the smallest vocabulary).</li>
+        <li><strong>Early merges</strong> capture frequent letter pairs and short words such as <code>th</code> and <code>the</code>.</li>
+        <li><strong>Later merges</strong> join whole words including the leading space (<code>␣cat</code>, <code>␣garden</code>). The token count drops, but the vocabulary grows.</li>
+        <li>The token count is what a real LLM is billed and limited by: context windows and prices are measured in tokens, not characters.</li>
+      </ul>
+      <h3>How this differs from production tokenizers</h3>
+      <p>GPT-style tokenizers run BPE over raw <em>bytes</em> (so any Unicode text is representable), use a vocabulary of tens of thousands to a few hundred thousand tokens, and are trained once on a huge text sample before the language model itself is trained. The model never sees letters, only these IDs. That is why models can be surprisingly bad at tasks like counting the letters in a word.</p>
+      <div class="try"><strong>Try it:</strong> type a word that is not in the corpus (for example <code>elephant</code>) and drag the slider. It mostly stays as single characters, because few or no learned merges apply to it. Then type <code>the cat sat on the mat.</code> and watch it collapse into very few tokens.</div>
+    </details>
+  </section>
+
+  <section>
+    <h2><span class="step">2</span><span data-i18n="h.train">Training a neural language model</span></h2>
+    <p class="lead" data-i18n="lead.train">The task is always the same: <strong>predict the next token</strong> given the previous ones. This little network embeds the last 3 words as vectors, mixes them through a hidden layer, and outputs a probability for every word in the vocabulary. Gradient descent nudges the weights to reduce cross-entropy loss on the corpus.</p>
+    <textarea id="corpus"></textarea>
+    <div class="row">
+      <button id="trainBtn">Pause</button>
+      <button class="ghost" id="resetBtn" data-i18n="btn.reset">Reinitialize &amp; retrain</button>
+      <span class="stats" id="trainStats"></span>
+    </div>
+    <div class="grid2">
+      <div>
+        <div class="stats" style="margin-bottom:4px" data-i18n="cap.loss">Training loss per epoch (lower = better predictions)</div>
+        <canvas id="lossCanvas" height="260"></canvas>
+      </div>
+      <div>
+        <div class="stats" style="margin-bottom:4px" data-i18n="cap.emb">Word embeddings in 3D (PCA) · drag: rotate · scroll: zoom</div>
+        <canvas id="embCanvas" height="260"></canvas>
+      </div>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="autoRot" checked> <span data-i18n="l.autorot">Auto-rotate</span></label>
+      <span class="zoombtns"><button class="ghost" id="zoomOut" title="Zoom out" data-i18n-title="t.zoomOut">−</button><button class="ghost" id="zoomIn" title="Zoom in" data-i18n-title="t.zoomIn">+</button><button class="ghost" id="zoomReset" title="Reset rotation and zoom" data-i18n-title="t.zoomReset" data-i18n="b.zoomReset">Reset view</button></span>
+      <label><span data-i18n="l.nn">Nearest words to</span> <input type="text" id="nnInput" value="cat" style="width:110px"></label>
+      <span class="stats" id="nnOut"></span>
+    </div>
+    <div class="note" data-i18n="note.train">Nobody told the model what a "cat" or a "boy" is. Words used in similar contexts end up close together in embedding space, because that helps predict what comes next. Watch clusters form as loss drops.</div>
+
+    <details class="explain" open data-i18n="ex.train">
+      <summary>How this works, in depth</summary>
+      <h3>The one task behind every language model</h3>
+      <p>Given the words so far, output a probability for every possible next word. Nothing else is trained. Grammar, facts and style are all by-products of getting better at this single prediction. Here the model sees the previous <strong>3 words</strong> and chooses among the <strong>vocabulary</strong> of the corpus.</p>
+      <h3>The network, step by step</h3>
+      <ol>
+        <li><strong>Embedding lookup.</strong> Each word ID indexes a row of a table and returns a vector of 12 numbers. The three vectors are joined into one input of 36 numbers. These vectors start random; they are parameters that get trained.</li>
+        <li><strong>Hidden layer.</strong> 48 neurons each compute a weighted sum of the input and squash it with <code>tanh</code>. Without this non-linearity the whole network would collapse into a single linear map and could not learn interactions between words.</li>
+        <li><strong>Output layer.</strong> One score ("logit") per vocabulary word.</li>
+        <li><strong>Softmax.</strong> Turns the scores into probabilities that are positive and sum to 1.</li>
+      </ol>
+      <h3>How learning happens</h3>
+      <ol>
+        <li>Take one example from the corpus: three context words and the word that actually followed.</li>
+        <li><strong>Loss</strong> = <code>−log p(correct word)</code>. It is 0 when the model is certain and right, and large when it gave the true word little probability.</li>
+        <li><strong>Backpropagation</strong> uses the chain rule to compute how much every weight contributed to the loss, working backwards from the output through the hidden layer to the embedding vectors.</li>
+        <li><strong>Gradient descent</strong> moves every weight a small step (the learning rate) in the direction that lowers the loss. This runs after every single example (stochastic gradient descent).</li>
+        <li>One pass over all examples is an <strong>epoch</strong>. Examples are shuffled each epoch, and the learning rate slowly decays so the model settles down.</li>
+      </ol>
+      <h3>Reading the charts</h3>
+      <ul>
+        <li><strong>Loss curve:</strong> the average loss per epoch. It starts near <code>ln(vocabulary size)</code> (pure guessing) and falls quickly, then flattens.</li>
+        <li><strong>Perplexity</strong> = <code>e^loss</code>. Read it as "the model is as unsure as if it were picking evenly among this many words". A perplexity of 2 means roughly a coin flip between two candidates.</li>
+        <li><strong>3D map:</strong> each dot is a word's 12-number embedding, squeezed to 3 dimensions with PCA (which finds the three directions of greatest spread). Distances are only approximate, since 9 dimensions are dropped. The cosine-similarity list under the plot uses all 12 numbers and is more reliable.</li>
+      </ul>
+      <h3>Why similar words cluster</h3>
+      <p>"cat" and "dog" are followed by the same kinds of words (sat, chased, slept), so gradient updates push their vectors in similar directions. Meaning emerges purely from usage. Bigger models learn the same effect at scale, which is why embeddings can capture relationships such as king − man + woman ≈ queen.</p>
+      <h3>Limits of this toy</h3>
+      <p>It sees only 3 words of context, has a few thousand weights, and learns from about 200 examples, so it can nearly memorise its corpus. Real LLMs use transformers that look at thousands of tokens, have billions of weights, and train on trillions of tokens. The training loop, however, is the same idea.</p>
+      <div class="try"><strong>Try it:</strong> press <em>Reinitialize &amp; retrain</em> and watch the loss restart from about 3.3. Edit the corpus (add sentences about a new animal such as <code>the fox chased the mouse.</code>) and see it join the animal cluster. Type different words in "Nearest words to" and watch the orange ring move.</div>
+    </details>
+  </section>
+
+  <section>
+    <h2><span class="step">3</span><span data-i18n="h.att">Attention</span></h2>
+    <p class="lead" data-i18n="lead.att">Transformers let every token look back at earlier tokens and decide how much each matters: <code>softmax(Q·Kᵀ / √d)</code>. Row = the token doing the looking, column = the token being looked at. The causal mask stops tokens from seeing the future.</p>
+    <input type="text" id="attInput" value="the cat chased the mouse and the dog sat on the mat .">
+    <div class="row">
+      <label><input type="checkbox" id="causal" checked> <span data-i18n="l.causal">Causal mask</span></label>
+      <label><span data-i18n="l.sharp">Sharpness</span> <input type="range" id="attTemp" min="0.3" max="4" step="0.1" value="1.5"><b id="attTempVal">1.5</b></label>
+    </div>
+    <div class="scroll"><canvas id="attCanvas" height="330" style="min-width:420px"></canvas></div>
+    <div class="note" data-i18n="note.att">Simplified for illustration: a single head with Q = K = the trained embeddings (no learned projection matrices, no stacking of layers). Real models use dozens of layers with many heads each, all learned. The model trained in the Training tab uses a plain MLP instead of attention, but the embeddings you see here are its own.</div>
+
+    <details class="explain" open data-i18n="ex.att">
+      <summary>How this works, in depth</summary>
+      <h3>The problem attention solves</h3>
+      <p>To predict the next word, a token often needs information from earlier tokens: which noun does "it" refer to, which verb belongs to this subject. Attention lets every position <strong>look back over all earlier positions and pull in the ones that matter</strong>, with the amount of attention decided by the data instead of by a fixed window like the 3-word window in tab 2.</p>
+      <h3>The computation</h3>
+      <ol>
+        <li>Each token has a <strong>query</strong> vector ("what am I looking for?") and every token has a <strong>key</strong> vector ("what do I contain?").</li>
+        <li>The <strong>score</strong> between token <em>i</em> and token <em>j</em> is the dot product of query<sub>i</sub> and key<sub>j</sub>. Vectors pointing the same way give a high score.</li>
+        <li>Scores are divided by <code>√d</code> (d = vector size). Dot products grow with dimension, and without this scaling the softmax would saturate.</li>
+        <li><strong>Softmax across each row</strong> turns the scores into weights that sum to 1. Those are the numbers in the heatmap.</li>
+        <li>In a real transformer the output for token <em>i</em> is the weighted average of the <strong>value</strong> vectors of the tokens it attends to, and that mix is passed to the next layer.</li>
+      </ol>
+      <h3>Reading the heatmap</h3>
+      <ul>
+        <li><strong>Rows</strong> are the token doing the looking; <strong>columns</strong> are the tokens being looked at. Brighter blue means more weight, and each row adds up to 1.</li>
+        <li><strong>Causal mask:</strong> when generating text, a token must not see the future, or training would be cheating. The masked upper triangle gets a score of −∞, so softmax gives it exactly zero. Untick the box to see full (bidirectional) attention, as used in models like BERT.</li>
+        <li><strong>Sharpness</strong> multiplies the scores before the softmax. High values concentrate almost all weight on the single best match; low values spread it out.</li>
+        <li>Each token tends to attend most to itself and to earlier copies of the same word (such as "the"), because identical embeddings have the highest dot product.</li>
+      </ul>
+      <h3>What is simplified here</h3>
+      <ul>
+        <li>Real attention uses three separate learned matrices to make Q, K and V from each token. Here Q = K = the trained embeddings, and no values are mixed.</li>
+        <li>Real models have many <strong>heads</strong> per layer (each can learn a different relationship, such as syntax or coreference) and dozens of stacked <strong>layers</strong>, plus position information so word order matters.</li>
+        <li>The network you trained in tab 2 is a plain MLP without attention. This tab only borrows its embeddings to show the mechanism.</li>
+      </ul>
+      <div class="try"><strong>Try it:</strong> untick the causal mask and note that the grid fills in fully. Move the sharpness slider to the extremes. Type a sentence with repeated words (<code>the dog and the dog and the cat</code>) and see which columns light up.</div>
+    </details>
+  </section>
+
+  <section>
+    <h2><span class="step">4</span><span data-i18n="h.samp">Sampling: generating text</span></h2>
+    <p class="lead" data-i18n="lead.samp">The model outputs a probability distribution over the next token. Generation is: sample one, append it, repeat. Sampling settings decide how adventurous the output is. Click any bar to force that token.</p>
+    <input type="text" id="prompt" value="the cat">
+    <div class="row">
+      <label><span data-i18n="l.temp">Temperature</span> <input type="range" id="temp" min="0.05" max="3" step="0.05" value="0.8"><b id="tempVal">0.8</b></label>
+      <label>Top-k <input type="range" id="topk" min="1" max="60" step="1" value="60"><b id="topkVal">off</b></label>
+      <label>Top-p <input type="range" id="topp" min="0.1" max="1" step="0.05" value="1"><b id="toppVal">off</b></label>
+    </div>
+    <div class="row">
+      <button id="stepBtn" data-i18n="b.step">Sample next token</button>
+      <button id="gen20Btn" class="ghost" data-i18n="b.gen20">Generate 20</button>
+      <button id="clearBtn" class="ghost" data-i18n="b.clear">Reset to prompt</button>
+    </div>
+    <div class="out" id="out"></div>
+    <div class="stats" style="margin-top:10px" data-i18n="cap.dist">Next-token distribution (after temperature, top-k, top-p; greyed = filtered out):</div>
+    <div class="bars" id="bars"></div>
+    <div class="note" data-i18n="note.samp">Low temperature sharpens the distribution toward the most likely token (repetitive, safe). High temperature flattens it (creative, eventually nonsense). Top-k keeps only the k likeliest tokens; top-p keeps the smallest set whose probabilities sum to p.</div>
+
+    <details class="explain" open data-i18n="ex.samp">
+      <summary>How this works, in depth</summary>
+      <h3>Generation is a loop</h3>
+      <ol>
+        <li>Feed the text so far (its last 3 words here) to the network from tab 2 to get a score for every vocabulary word.</li>
+        <li>Turn the scores into probabilities with softmax, reshaped by the sampling controls above.</li>
+        <li><strong>Randomly draw</strong> one word in proportion to its probability.</li>
+        <li>Append it to the text and go back to step 1. A "." resets the context, just as in training.</li>
+      </ol>
+      <p>The model never plans a sentence. Every word is a fresh draw from a distribution, and the appearance of fluent text comes from each draw being well informed by what came before. Because the draw is random, the same prompt gives different outputs each time.</p>
+      <h3>The three controls</h3>
+      <ul>
+        <li><strong>Temperature</strong> divides the scores before softmax. Below 1 the gap between likely and unlikely words widens (near 0 you always get the top word, which is <em>greedy decoding</em>: safe but repetitive and prone to loops). Above 1 the distribution flattens, so unlikely words appear more often (varied, then incoherent). At 1 you see the model's raw, unmodified beliefs.</li>
+        <li><strong>Top-k</strong> keeps only the <em>k</em> most likely words and discards the rest. It stops rare, nonsensical words from ever being sampled, but a fixed k is blunt: sometimes 2 words are reasonable, sometimes 50.</li>
+        <li><strong>Top-p (nucleus)</strong> keeps the smallest set of top words whose probabilities add up to <em>p</em>. It adapts automatically: few candidates when the model is confident, many when it is unsure.</li>
+      </ul>
+      <p>After filtering, the surviving probabilities are rescaled to sum to 1, which is why kept bars show larger percentages than before. Greyed-out bars marked "cut" are excluded. Real systems usually combine all three.</p>
+      <h3>Reading the bars</h3>
+      <p>Each bar is one candidate next word, sorted by probability; the list shows the top 12. A very tall first bar means the model is confident (for example, finishing a common phrase). Bars of similar height mean it is genuinely torn. You can click any bar to force that word, which is a handy way to steer the text and see how the next distribution reacts.</p>
+      <h3>Why this matters for real LLMs</h3>
+      <p>Chat models use exactly this loop, just with a much bigger network and vocabulary. Hallucination is partly a consequence: the model always outputs <em>some</em> probability distribution, so a fluent-sounding token can be sampled even when the model has no real knowledge. Settings like temperature are why an assistant can be made more deterministic for code and more varied for creative writing.</p>
+      <div class="try"><strong>Try it:</strong> set temperature to 0.05 and press <em>Generate 20</em> a few times (you will see nearly identical, repetitive output). Then raise it to 2.5 and watch the text degrade. Set top-k to 1: it is equivalent to greedy decoding at any temperature. Finally, keep temperature at 1 and set top-p to 0.5 to see only the head of the distribution survive.</div>
+    </details>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const DEFAULT_CORPUS = `the cat sat on the mat. the dog sat on the rug. the cat chased the mouse. the dog chased the cat.
+a small cat drank milk. a big dog ate meat. the bird sang in the tree. the bird flew over the house.
+the mouse ate cheese. the cat slept on the sofa. the dog slept in the house. the girl read a book.
+the boy read a letter. the girl drank tea. the boy ate bread. the girl sang a song.
+the boy played in the garden. the dog played in the garden. the cat and the dog played in the house.
+a big bird sat in the tree. the small mouse ran under the sofa. the boy ran to the house.
+the girl walked to the garden. the boy and the girl walked to the tree. the dog ate meat in the garden.
+the cat drank milk on the mat. a small bird sang a song. the girl read a letter in the house.
+the boy drank tea and ate bread. the mouse ran to the house. the big cat chased the small mouse.`;
+$("corpus").value = DEFAULT_CORPUS;
+
+/* =====================================================================
+ * INTERNATIONALISATION (English / Polish)
+ * ---------------------------------------------------------------------
+ * Two kinds of text need translating:
+ *
+ *  1. STATIC TEXT in the HTML. Elements carry a data-i18n="key" attribute
+ *     (data-i18n-title="key" for tooltips). The English text already sits
+ *     in the markup, so at start-up we copy it into EN[key]; only the
+ *     Polish version PL[key] is written out by hand. Switching language
+ *     just swaps each element's innerHTML (or title) for the right string.
+ *     A key that is missing from PL silently falls back to English.
+ *
+ *  2. DYNAMIC TEXT built by the script (stats lines, button captions, ...).
+ *     These live in STR[lang][key] and are read with msg(key). Where a
+ *     message contains numbers, the entry is a function taking them.
+ *     Polish messages avoid "N tokens / N words" sentences on purpose,
+ *     because Polish noun endings depend on the number (1 token, 2 tokeny,
+ *     5 tokenów); "liczba tokenów: N" sidesteps the problem.
+ *
+ * NOT translated on purpose: the training corpus and the example words.
+ * The model learns from English text, so its vocabulary, token chips and
+ * generated sentences stay English in both languages.
+ *
+ * To add a language: add its dictionary + STR entry, and a button in the
+ * .lang switch in the header. Keep prose in sync when the English changes.
+ * ===================================================================== */
+let lang = "en";
+const EN = {};   // key -> English HTML/title, captured from the page below
+document.querySelectorAll("[data-i18n]").forEach(el => { EN[el.dataset.i18n] = el.innerHTML; });
+document.querySelectorAll("[data-i18n-title]").forEach(el => { EN[el.dataset.i18nTitle] = el.title; });
+
+const PL = {
+  sub: "Model językowy zbudowany od zera w ~500 liniach JavaScriptu i działający w całości w Twojej przeglądarce. Każda sekcja pokazuje jedną kluczową ideę stojącą za modelami takimi jak GPT i Claude, w miniaturowej skali. Uwaga: korpus treningowy i przykładowe słowa pozostają po angielsku, bo na takim tekście uczy się model.",
+
+  "h.tok": "Tokenizacja (kodowanie par bajtów, BPE)",
+  "lead.tok": "Modele nie czytają liter ani słów, tylko <em>tokeny</em>. BPE zaczyna od pojedynczych znaków i wielokrotnie łączy najczęstszą parę sąsiadujących symboli. Przesuwaj suwak, aby zobaczyć, jak kolejne scalenia zamieniają znaki we fragmenty słów.",
+  "l.merges": "Zastosowane scalenia",
+  "note.tok": "Prawdziwe modele uczą się ok. 100 tys. scaleń z terabajtów tekstu. Tutaj scalenia są wyuczone z maleńkiego korpusu z zakładki Trening, więc słowa, które model już widział, dobrze się kompresują, a nieznane rozpadają się na pojedyncze znaki.",
+  "ex.tok": `
+      <summary>Jak to działa — szczegółowo</summary>
+      <h3>Po co w ogóle tokeny?</h3>
+      <p>Sieć neuronowa operuje wyłącznie na liczbach, więc tekst trzeba najpierw pociąć na kawałki, z których każdy dostaje numer (ID). Podział na całe słowa wymaga gigantycznego słownika i zawodzi przy każdym nieznanym słowie. Podział na pojedyncze znaki nigdy nie zawodzi, ale sekwencje robią się bardzo długie, a pojedynczy znak niesie mało znaczenia. <strong>Tokeny podsłowne</strong> to kompromis: popularne słowa stają się jednym tokenem, rzadkie składa się z kilku fragmentów i nic nie jest „nieznane”.</p>
+      <h3>Jak kodowanie par bajtów uczy się słownika</h3>
+      <ol>
+        <li>Podziel korpus na słowa (słowo zachowuje poprzedzającą spację, pokazaną jako <code>␣</code>) i zapisz każde słowo jako listę znaków.</li>
+        <li>Policz każdą parę sąsiednich symboli w całym korpusie, ważoną tym, jak często występuje dane słowo.</li>
+        <li>Weź najczęstszą parę (musi wystąpić co najmniej dwa razy) i wszędzie scal ją w jeden nowy symbol. Zapamiętaj to scalenie.</li>
+        <li>Powtarzaj. Każdy obieg dodaje do słownika jeden symbol; uporządkowana lista scaleń <em>jest</em> tokenizerem.</li>
+      </ol>
+      <p>Aby zakodować nowy tekst, zacznij od znaków i odtwórz zapamiętane scalenia w tej samej kolejności. Dokładnie to robi suwak: odtwarza tylko pierwsze <em>k</em> scaleń.</p>
+      <h3>Co widzisz</h3>
+      <ul>
+        <li><strong>0 scaleń:</strong> jeden token na znak (najdłuższa możliwa sekwencja, najmniejszy słownik).</li>
+        <li><strong>Wczesne scalenia</strong> obejmują częste pary liter i krótkie słowa, takie jak <code>th</code> i <code>the</code>.</li>
+        <li><strong>Późniejsze scalenia</strong> łączą całe słowa razem z poprzedzającą spacją (<code>␣cat</code>, <code>␣garden</code>). Liczba tokenów maleje, ale słownik rośnie.</li>
+        <li>To liczba tokenów decyduje o kosztach i limitach prawdziwych LLM-ów: okna kontekstu i ceny liczy się w tokenach, a nie w znakach.</li>
+      </ul>
+      <h3>Czym różni się to od produkcyjnych tokenizerów</h3>
+      <p>Tokenizery w stylu GPT stosują BPE na surowych <em>bajtach</em> (dzięki czemu da się zapisać dowolny tekst Unicode), mają słownik od kilkudziesięciu tysięcy do kilkuset tysięcy tokenów i są uczone raz, na ogromnej próbce tekstu, jeszcze przed treningiem samego modelu językowego. Model nigdy nie widzi liter, tylko te numery ID. Dlatego bywa zaskakująco słaby w zadaniach typu liczenie liter w słowie.</p>
+      <div class="try"><strong>Wypróbuj:</strong> wpisz słowo, którego nie ma w korpusie (np. <code>elephant</code>) i przesuwaj suwak. W większości pozostanie pojedynczymi znakami, bo pasuje do niego niewiele wyuczonych scaleń lub żadne. Potem wpisz <code>the cat sat on the mat.</code> i zobacz, jak zapada się do kilku tokenów.</div>
+    `,
+
+  "h.train": "Trenowanie neuronowego modelu językowego",
+  "lead.train": "Zadanie jest zawsze takie samo: <strong>przewidzieć następny token</strong> na podstawie poprzednich. Ta mała sieć zamienia trzy ostatnie słowa na wektory, przepuszcza je przez warstwę ukrytą i zwraca prawdopodobieństwo dla każdego słowa ze słownika. Spadek gradientu delikatnie koryguje wagi, aby zmniejszyć stratę (entropię krzyżową) na korpusie.",
+  "btn.reset": "Zainicjuj od nowa i trenuj ponownie",
+  "cap.loss": "Strata treningowa w kolejnych epokach (niższa = lepsze przewidywania)",
+  "cap.emb": "Osadzenia słów w 3D (PCA) · przeciągnij: obrót · kółko: powiększenie",
+  "l.autorot": "Automatyczny obrót",
+  "t.zoomOut": "Pomniejsz",
+  "t.zoomIn": "Powiększ",
+  "t.zoomReset": "Zresetuj obrót i powiększenie",
+  "b.zoomReset": "Resetuj widok",
+  "l.nn": "Najbliższe słowa dla",
+  "note.train": "Nikt nie powiedział modelowi, czym jest „cat” (kot) czy „boy” (chłopiec). Słowa używane w podobnych kontekstach lądują blisko siebie w przestrzeni osadzeń, bo to pomaga przewidywać, co będzie dalej. Obserwuj, jak tworzą się skupiska, gdy strata spada.",
+  "ex.train": `
+      <summary>Jak to działa — szczegółowo</summary>
+      <h3>Jedno zadanie stojące za każdym modelem językowym</h3>
+      <p>Mając słowa dotychczas widziane, podaj prawdopodobieństwo każdego możliwego następnego słowa. Niczego więcej się nie trenuje. Gramatyka, wiedza i styl są produktami ubocznymi coraz lepszego wykonywania tego jednego przewidywania. Tutaj model widzi <strong>3 poprzednie słowa</strong> i wybiera spośród <strong>słownika</strong> korpusu.</p>
+      <h3>Sieć krok po kroku</h3>
+      <ol>
+        <li><strong>Wyszukanie osadzenia.</strong> Numer ID każdego słowa wskazuje wiersz tabeli i zwraca wektor 12 liczb. Trzy wektory są sklejane w jedno wejście o długości 36. Wektory zaczynają jako losowe; są parametrami, które się uczą.</li>
+        <li><strong>Warstwa ukryta.</strong> 48 neuronów liczy każdy sumę ważoną wejścia i ściska ją funkcją <code>tanh</code>. Bez tej nieliniowości cała sieć zapadłaby się w jedno przekształcenie liniowe i nie umiałaby uczyć się zależności między słowami.</li>
+        <li><strong>Warstwa wyjściowa.</strong> Jeden wynik („logit”) dla każdego słowa ze słownika.</li>
+        <li><strong>Softmax.</strong> Zamienia wyniki na prawdopodobieństwa, które są dodatnie i sumują się do 1.</li>
+      </ol>
+      <h3>Jak przebiega uczenie</h3>
+      <ol>
+        <li>Weź jeden przykład z korpusu: trzy słowa kontekstu i słowo, które faktycznie po nich wystąpiło.</li>
+        <li><strong>Strata</strong> = <code>−log p(poprawne słowo)</code>. Wynosi 0, gdy model jest pewny i ma rację, a jest duża, gdy prawdziwemu słowu przypisał małe prawdopodobieństwo.</li>
+        <li><strong>Propagacja wsteczna</strong> za pomocą reguły łańcuchowej oblicza, w jakim stopniu każda waga przyczyniła się do straty, cofając się od wyjścia przez warstwę ukrytą aż do wektorów osadzeń.</li>
+        <li><strong>Spadek gradientu</strong> przesuwa każdą wagę o mały krok (współczynnik uczenia) w kierunku zmniejszającym stratę. Dzieje się to po każdym pojedynczym przykładzie (stochastyczny spadek gradientu).</li>
+        <li>Jedno przejście po wszystkich przykładach to <strong>epoka</strong>. W każdej epoce przykłady są tasowane, a współczynnik uczenia powoli maleje, żeby model się ustabilizował.</li>
+      </ol>
+      <h3>Jak czytać wykresy</h3>
+      <ul>
+        <li><strong>Krzywa straty:</strong> średnia strata w epoce. Zaczyna blisko <code>ln(rozmiar słownika)</code> (czyste zgadywanie), szybko spada, a potem się wypłaszcza.</li>
+        <li><strong>Perpleksja</strong> = <code>e^strata</code>. Czytaj to tak: „model jest tak niepewny, jakby wybierał równomiernie spośród tylu słów”. Perpleksja 2 oznacza mniej więcej rzut monetą między dwoma kandydatami.</li>
+        <li><strong>Mapa 3D:</strong> każdy punkt to 12-liczbowe osadzenie słowa, zredukowane do 3 wymiarów metodą PCA (która znajduje trzy kierunki największego rozrzutu). Odległości są tylko przybliżone, bo 9 wymiarów odrzucono. Lista podobieństwa kosinusowego pod wykresem używa wszystkich 12 liczb i jest bardziej wiarygodna.</li>
+      </ul>
+      <h3>Dlaczego podobne słowa się grupują</h3>
+      <p>Po „cat” i „dog” występują podobne słowa (sat, chased, slept), więc aktualizacje gradientu popychają ich wektory w podobnych kierunkach. Znaczenie wyłania się wyłącznie z użycia. Większe modele uczą się tego samego efektu na większą skalę, dlatego osadzenia potrafią oddawać zależności takie jak król − mężczyzna + kobieta ≈ królowa.</p>
+      <h3>Ograniczenia tej zabawki</h3>
+      <p>Widzi tylko 3 słowa kontekstu, ma kilka tysięcy wag i uczy się na około 200 przykładach, więc może niemal zapamiętać cały korpus. Prawdziwe LLM-y używają transformerów, które patrzą na tysiące tokenów, mają miliardy wag i trenują na bilionach tokenów. Sama pętla treningowa opiera się jednak na tym samym pomyśle.</p>
+      <div class="try"><strong>Wypróbuj:</strong> naciśnij <em>Zainicjuj od nowa i trenuj ponownie</em> i zobacz, jak strata startuje od około 3,3. Zmień korpus (dodaj zdania o nowym zwierzęciu, np. <code>the fox chased the mouse.</code>) i zobacz, jak dołącza do skupiska zwierząt. Wpisuj różne słowa w polu „Najbliższe słowa dla” i obserwuj, jak przesuwa się pomarańczowy pierścień.</div>
+    `,
+
+  "h.att": "Uwaga (attention)",
+  "lead.att": "Transformery pozwalają każdemu tokenowi spojrzeć wstecz na wcześniejsze tokeny i zdecydować, jak bardzo każdy z nich się liczy: <code>softmax(Q·Kᵀ / √d)</code>. Wiersz = token, który patrzy, kolumna = token, na który patrzy. Maska przyczynowa uniemożliwia tokenom podglądanie przyszłości.",
+  "l.causal": "Maska przyczynowa",
+  "l.sharp": "Ostrość",
+  "note.att": "Uproszczone dla celów ilustracji: jedna głowica, Q = K = wyuczone osadzenia (bez uczonych macierzy rzutowania i bez układania warstw). Prawdziwe modele mają dziesiątki warstw, a w każdej wiele głowic, wszystkie uczone. Model wytrenowany w zakładce Trening używa zwykłej sieci MLP zamiast uwagi, ale widoczne tu osadzenia pochodzą właśnie od niego.",
+  "ex.att": `
+      <summary>Jak to działa — szczegółowo</summary>
+      <h3>Problem, który rozwiązuje uwaga</h3>
+      <p>Aby przewidzieć następne słowo, token często potrzebuje informacji z wcześniejszych tokenów: do jakiego rzeczownika odnosi się „it”, który czasownik należy do tego podmiotu. Uwaga pozwala każdej pozycji <strong>spojrzeć wstecz na wszystkie wcześniejsze pozycje i pobrać te, które mają znaczenie</strong>; ilość uwagi zależy od danych, a nie od stałego okna, jak 3-słowne okno z zakładki 2.</p>
+      <h3>Obliczenia</h3>
+      <ol>
+        <li>Każdy token ma wektor <strong>zapytania</strong> (query: „czego szukam?”), a także wektor <strong>klucza</strong> (key: „co zawieram?”).</li>
+        <li><strong>Wynik</strong> między tokenem <em>i</em> a tokenem <em>j</em> to iloczyn skalarny zapytania<sub>i</sub> i klucza<sub>j</sub>. Wektory skierowane w tę samą stronę dają wysoki wynik.</li>
+        <li>Wyniki dzieli się przez <code>√d</code> (d = rozmiar wektora). Iloczyny skalarne rosną wraz z wymiarem, a bez takiego skalowania softmax by się nasycał.</li>
+        <li><strong>Softmax w każdym wierszu</strong> zamienia wyniki na wagi sumujące się do 1. To są liczby na mapie cieplnej.</li>
+        <li>W prawdziwym transformerze wyjście dla tokenu <em>i</em> to średnia ważona wektorów <strong>wartości</strong> (value) tokenów, na które zwraca uwagę, a ta mieszanka trafia do następnej warstwy.</li>
+      </ol>
+      <h3>Jak czytać mapę cieplną</h3>
+      <ul>
+        <li><strong>Wiersze</strong> to token, który patrzy; <strong>kolumny</strong> to tokeny, na które patrzy. Jaśniejszy niebieski oznacza większą wagę, a każdy wiersz sumuje się do 1.</li>
+        <li><strong>Maska przyczynowa:</strong> podczas generowania tekstu token nie może widzieć przyszłości, bo trening byłby oszustwem. Zamaskowany górny trójkąt dostaje wynik −∞, więc softmax daje mu dokładnie zero. Odznacz pole, aby zobaczyć pełną (dwukierunkową) uwagę, taką jak w modelach typu BERT.</li>
+        <li><strong>Ostrość</strong> mnoży wyniki przed softmaksem. Wysokie wartości skupiają prawie całą wagę na jednym najlepszym dopasowaniu; niskie rozkładają ją równomiernie.</li>
+        <li>Każdy token zwykle zwraca największą uwagę na siebie samego i na wcześniejsze kopie tego samego słowa (np. „the”), bo identyczne osadzenia mają największy iloczyn skalarny.</li>
+      </ul>
+      <h3>Co jest tu uproszczone</h3>
+      <ul>
+        <li>Prawdziwa uwaga używa trzech osobnych uczonych macierzy, aby z każdego tokenu zrobić Q, K i V. Tutaj Q = K = wyuczone osadzenia i żadne wartości nie są mieszane.</li>
+        <li>Prawdziwe modele mają wiele <strong>głowic</strong> w warstwie (każda może nauczyć się innej zależności, np. składni czy koreferencji) i dziesiątki ułożonych jedna na drugiej <strong>warstw</strong>, a także informację o pozycji, dzięki której kolejność słów ma znaczenie.</li>
+        <li>Sieć wytrenowana w zakładce 2 to zwykły MLP bez uwagi. Ta zakładka tylko pożycza jej osadzenia, aby pokazać sam mechanizm.</li>
+      </ul>
+      <div class="try"><strong>Wypróbuj:</strong> odznacz maskę przyczynową i zobacz, że siatka wypełnia się w całości. Przesuń suwak ostrości do skrajnych wartości. Wpisz zdanie z powtórzeniami (<code>the dog and the dog and the cat</code>) i zobacz, które kolumny się rozświetlają.</div>
+    `,
+
+  "h.samp": "Próbkowanie: generowanie tekstu",
+  "lead.samp": "Model zwraca rozkład prawdopodobieństwa następnego tokenu. Generowanie polega na tym: wylosuj jeden, dopisz go, powtórz. Ustawienia próbkowania decydują, jak odważny będzie wynik. Kliknij dowolny słupek, aby wymusić ten token.",
+  "l.temp": "Temperatura",
+  "b.step": "Losuj następny token",
+  "b.gen20": "Generuj 20",
+  "b.clear": "Przywróć prompt",
+  "cap.dist": "Rozkład następnego tokenu (po temperaturze, top-k i top-p; szare = odfiltrowane):",
+  "note.samp": "Niska temperatura wyostrza rozkład w stronę najbardziej prawdopodobnego tokenu (powtarzalnie, bezpiecznie). Wysoka temperatura go spłaszcza (kreatywnie, aż do bezsensu). Top-k zostawia tylko k najbardziej prawdopodobnych tokenów; top-p zostawia najmniejszy zbiór, którego prawdopodobieństwa sumują się do p.",
+  "ex.samp": `
+      <summary>Jak to działa — szczegółowo</summary>
+      <h3>Generowanie to pętla</h3>
+      <ol>
+        <li>Podaj dotychczasowy tekst (tu: jego ostatnie 3 słowa) sieci z zakładki 2, aby otrzymać wynik dla każdego słowa ze słownika.</li>
+        <li>Zamień wyniki na prawdopodobieństwa za pomocą softmaksu, przekształconego ustawieniami próbkowania powyżej.</li>
+        <li><strong>Wylosuj</strong> jedno słowo proporcjonalnie do jego prawdopodobieństwa.</li>
+        <li>Dopisz je do tekstu i wróć do kroku 1. Kropka „.” zeruje kontekst, tak samo jak podczas treningu.</li>
+      </ol>
+      <p>Model nigdy nie planuje zdania. Każde słowo to nowe losowanie z rozkładu, a wrażenie płynnego tekstu bierze się stąd, że każde losowanie jest dobrze poinformowane tym, co było wcześniej. Ponieważ losowanie jest przypadkowe, ten sam prompt daje za każdym razem inny wynik.</p>
+      <h3>Trzy pokrętła</h3>
+      <ul>
+        <li><strong>Temperatura</strong> dzieli wyniki przed softmaksem. Poniżej 1 różnica między słowami prawdopodobnymi a nieprawdopodobnymi rośnie (blisko 0 zawsze dostajesz słowo z czołówki, czyli <em>dekodowanie zachłanne</em>: bezpieczne, ale powtarzalne i skłonne do zapętleń). Powyżej 1 rozkład się spłaszcza, więc nieprawdopodobne słowa pojawiają się częściej (różnorodnie, a potem niespójnie). Przy 1 widzisz surowe, niezmodyfikowane przekonania modelu.</li>
+        <li><strong>Top-k</strong> zostawia tylko <em>k</em> najbardziej prawdopodobnych słów i odrzuca resztę. Chroni to przed losowaniem rzadkich, bezsensownych słów, ale stałe k jest toporne: czasem rozsądne są 2 słowa, a czasem 50.</li>
+        <li><strong>Top-p (próbkowanie jądrowe)</strong> zostawia najmniejszy zbiór najlepszych słów, których prawdopodobieństwa sumują się do <em>p</em>. Dostosowuje się samo: mało kandydatów, gdy model jest pewny, a wielu, gdy nie jest.</li>
+      </ul>
+      <p>Po filtrowaniu pozostałe prawdopodobieństwa są przeskalowywane tak, by sumowały się do 1, dlatego zachowane słupki pokazują większe wartości niż wcześniej. Wyszarzone słupki z napisem „odrzucone” są wykluczone. Prawdziwe systemy zwykle łączą wszystkie trzy.</p>
+      <h3>Jak czytać słupki</h3>
+      <p>Każdy słupek to jedno kandydujące następne słowo, posortowane według prawdopodobieństwa; lista pokazuje 12 pierwszych. Bardzo wysoki pierwszy słupek oznacza, że model jest pewny (np. kończy popularne wyrażenie). Słupki podobnej wysokości oznaczają, że naprawdę się waha. Możesz kliknąć dowolny słupek, aby wymusić to słowo, co ułatwia sterowanie tekstem i obserwowanie, jak reaguje kolejny rozkład.</p>
+      <h3>Dlaczego to ważne w prawdziwych LLM-ach</h3>
+      <p>Modele czatowe używają dokładnie tej pętli, tylko z dużo większą siecią i słownikiem. Halucynacje są po części jej konsekwencją: model zawsze zwraca <em>jakiś</em> rozkład prawdopodobieństwa, więc może wylosować brzmiący wiarygodnie token, nawet gdy nie ma prawdziwej wiedzy. Ustawienia takie jak temperatura sprawiają, że asystenta można uczynić bardziej deterministycznym do kodu, a bardziej zróżnicowanym do pisania kreatywnego.</p>
+      <div class="try"><strong>Wypróbuj:</strong> ustaw temperaturę na 0,05 i kilka razy naciśnij <em>Generuj 20</em> (zobaczysz niemal identyczny, powtarzalny wynik). Potem podnieś ją do 2,5 i obserwuj, jak tekst się rozpada. Ustaw top-k na 1: to równoważne dekodowaniu zachłannemu przy dowolnej temperaturze. Na koniec zostaw temperaturę na 1 i ustaw top-p na 0,5, aby zobaczyć, jak przetrwa tylko czoło rozkładu.</div>
+    `,
+};
+
+// Dynamic strings, per language. Entries that embed numbers are functions.
+const STR = {
+  en: {
+    tabs: ["1 Tokens", "2 Training", "3 Attention", "4 Sampling"],
+    pause: "Pause", resume: "Resume", trainMore: "Train more",
+    off: "off", cut: "cut",
+    emptyPrompt: "(empty prompt)",
+    epoch: "epoch",
+    unknownWord: "word not in vocabulary",
+    noMerges: "no merges: pure characters",
+    lastMerge: (a, b) => `last merge: <code>${a}</code> + <code>${b}</code>`,
+    tokStats: (n, chars, last) => `<b>${n}</b> tokens for ${chars} characters · ${last} · <code>␣</code> marks a leading space`,
+    trainStats: (ep, loss, ppl, V, N) => `epoch <b>${ep}</b> · loss <b>${loss}</b> · perplexity <b>${ppl}</b> (of ${V} words) · ${N} examples`,
+  },
+  pl: {
+    tabs: ["1 Tokeny", "2 Trening", "3 Uwaga", "4 Próbkowanie"],
+    pause: "Wstrzymaj", resume: "Wznów", trainMore: "Trenuj dalej",
+    off: "wył.", cut: "odrzucone",
+    emptyPrompt: "(pusty prompt)",
+    epoch: "epoka",
+    unknownWord: "słowa nie ma w słowniku",
+    noMerges: "brak scaleń: same znaki",
+    lastMerge: (a, b) => `ostatnie scalenie: <code>${a}</code> + <code>${b}</code>`,
+    tokStats: (n, chars, last) => `liczba tokenów: <b>${n}</b> · liczba znaków: ${chars} · ${last} · <code>␣</code> oznacza spację wiodącą`,
+    trainStats: (ep, loss, ppl, V, N) => `epoka <b>${ep}</b> · strata <b>${loss}</b> · perpleksja <b>${ppl}</b> (rozmiar słownika: ${V}) · liczba przykładów: ${N}`,
+  },
+};
+// (Named msg/tr rather than t: many callbacks below use `t` for "token".)
+const msg = key => STR[lang][key];
+const tr = key => (lang === "pl" && PL[key]) || EN[key];
+// Format a number with d decimals; Polish uses a decimal comma.
+const fmt = (x, d) => { const s = x.toFixed(d); return lang === "pl" ? s.replace(".", ",") : s; };
+
+// Text of the Pause/Resume/Train-more button. It depends on the training
+// state as well as the language, so one function computes it for both.
+function updateTrainBtn() {
+  $("trainBtn").textContent = training ? msg("pause") : (epoch >= maxEpoch ? msg("trainMore") : msg("resume"));
+}
+
+// Switch the whole page to language l ("en" | "pl") and remember the choice.
+function setLang(l) {
+  lang = l;
+  try { localStorage.setItem("llmLang", l); } catch (e) {}     // storage can be blocked
+  document.documentElement.lang = l;                           // for screen readers / hyphenation
+  // 1) static text: swap each tagged element's content or tooltip.
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.innerHTML = tr(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-title]").forEach(el => { el.title = tr(el.dataset.i18nTitle); });
+  document.querySelectorAll(".lang button").forEach(b => b.classList.toggle("on", b.dataset.lang === l));
+  [...$("tabs").children].forEach((b, i) => { b.textContent = msg("tabs")[i]; });
+  // 2) dynamic text: re-run the renderers that build strings in script.
+  renderTokens(); drawTraining(); onDistChange(); refreshGen(); updateTrainBtn();
+}
+
+/* =====================================================================
+ * OVERVIEW
+ * ---------------------------------------------------------------------
+ * Everything below is plain JavaScript, no libraries. The page has four
+ * tabs, and each one demonstrates a piece of how an LLM works:
+ *
+ *   1. Tokenization  - byte-pair encoding (BPE) learned from the corpus.
+ *   2. Training      - a small neural net (embeddings -> hidden layer ->
+ *                      softmax) trained by gradient descent to predict the
+ *                      next word. Includes the loss chart and the 3D
+ *                      embedding plot.
+ *   3. Attention     - a causal self-attention heatmap over the trained
+ *                      embeddings (illustrative, single head).
+ *   4. Sampling      - generation using temperature / top-k / top-p.
+ *
+ * Data flow: corpus text -> buildData() (vocab + training examples)
+ *   -> initNet() (random weights) -> trainEpoch() repeated in loop()
+ *   -> forward() gives next-word probabilities used by sections 3 and 4.
+ *
+ * Rendering: all charts are drawn on <canvas> elements with the 2D API.
+ * The DOM-based parts (token chips, probability bars) use innerHTML.
+ * ===================================================================== */
+
+/* ---------- small helpers ---------- */
+
+// Deterministic string -> hue (0..359), so the same token/word always
+// gets the same colour in the token chips and in the 3D plot.
+const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
+// Pastel HSL colour for a token; lightness is high so dark text stays readable on it.
+const chipColor = s => `hsl(${hue(s)},70%,72%)`;
+// Minimal HTML escaping for text we inject through innerHTML.
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+/* =====================================================================
+ * 1. BYTE-PAIR ENCODING (BPE)
+ * ---------------------------------------------------------------------
+ * Idea: start with every character as its own token, then repeatedly find
+ * the most frequent adjacent pair of tokens in the corpus and merge it into
+ * a new token. The ordered list of merges IS the tokenizer. To encode new
+ * text you replay the merges in the same order.
+ * ===================================================================== */
+let merges = [];   // ordered list of [left, right] pairs learned by trainBPE()
+
+// Split text into "pre-tokens": a word with its optional leading space
+// (" cat"), or a single punctuation character. Keeping the space attached
+// to the word lets the tokenizer tell "the" at the start of a word from one
+// inside a longer word. BPE merges never cross pre-token boundaries.
+function preTokens(text) { return text.match(/ ?[A-Za-z']+|[^\sA-Za-z']/g) || []; }
+
+// Learn up to maxMerges merge rules from `text`.
+function trainBPE(text, maxMerges) {
+  // Count how often each pre-token occurs. Working on unique words with a
+  // frequency is far cheaper than re-scanning the whole text every merge.
+  const freq = new Map();
+  for (const w of preTokens(text.toLowerCase())) freq.set(w, (freq.get(w) || 0) + 1);
+  // Each word starts out as an array of single characters.
+  let words = [...freq].map(([w, f]) => ({ syms: [...w], f }));
+  const out = [];
+  for (let m = 0; m < maxMerges; m++) {
+    // 1) Count every adjacent symbol pair, weighted by word frequency.
+    //    The pair is stored as "a\0b" so it can be used as a Map key.
+    const pc = new Map();
+    for (const { syms, f } of words)
+      for (let i = 0; i < syms.length - 1; i++) {
+        const k = syms[i] + "\u0000" + syms[i + 1];
+        pc.set(k, (pc.get(k) || 0) + f);
+      }
+    // 2) Pick the most frequent pair. bc starts at 1 so a pair must occur
+    //    at least twice to be worth merging (otherwise we just memorise).
+    let best = null, bc = 1;
+    for (const [k, c] of pc) if (c > bc) { best = k; bc = c; }
+    if (!best) break;                              // nothing left worth merging
+    const [a, b] = best.split("\u0000");
+    out.push([a, b]);
+    // 3) Apply the merge everywhere: replace each adjacent a,b with "ab".
+    for (const w of words) {
+      const n = [];
+      for (let i = 0; i < w.syms.length; i++) {
+        if (w.syms[i] === a && w.syms[i + 1] === b) { n.push(a + b); i++; } else n.push(w.syms[i]);
+      }
+      w.syms = n;
+    }
+  }
+  return out;
+}
+
+// Tokenize `text` using only the first k learned merges.
+// With k = 0 you get raw characters; with all merges you get the smallest
+// token count. Characters never seen in training simply stay as characters.
+function bpeEncode(text, k) {
+  const res = [];
+  for (const w of preTokens(text)) {
+    let syms = [...w];
+    // Replay merges in the order they were learned (order matters!).
+    for (let m = 0; m < k && m < merges.length; m++) {
+      const [a, b] = merges[m], n = [];
+      for (let i = 0; i < syms.length; i++) {
+        if (syms[i] === a && syms[i + 1] === b) { n.push(a + b); i++; } else n.push(syms[i]);
+      }
+      syms = n;
+    }
+    res.push(...syms);
+  }
+  return res;
+}
+
+// Render tab 1: one coloured <span> "chip" per token plus a stats line.
+function renderTokens() {
+  const k = +$("mergeSlider").value;
+  $("mergeVal").textContent = k;
+  const text = $("tokInput").value;
+  const toks = bpeEncode(text, k);
+  // A leading space is invisible, so show it as the "␣" symbol.
+  $("tokChips").innerHTML = toks.map(t => `<span class="chip" style="background:${chipColor(t)}">${esc(t).replace(/^ /, "␣")}</span>`).join("");
+  const last = k > 0 && merges[k - 1] ? msg("lastMerge")(esc(merges[k - 1][0]), esc(merges[k - 1][1])) : msg("noMerges");
+  $("tokStats").innerHTML = msg("tokStats")(toks.length, text.length, last);
+}
+
+/* =====================================================================
+ * 2. THE NEURAL LANGUAGE MODEL
+ * ---------------------------------------------------------------------
+ * Architecture (a classic "neural n-gram" / Bengio-style model):
+ *
+ *   last CTX words --lookup--> CTX embedding vectors (D numbers each)
+ *        --concatenate--> x            (length CTX*D)
+ *        --W1,b1, tanh--> h            (length H, the hidden layer)
+ *        --W2,b2--------> z            (length V, one "logit" per word)
+ *        --softmax------> p            (probability of every next word)
+ *
+ * Training minimises cross-entropy loss  L = -log p[correct next word]
+ * with plain stochastic gradient descent (one update per example).
+ * A real LLM has the same shape of problem (predict the next token) but
+ * uses a transformer with billions of weights instead of this tiny MLP.
+ * ===================================================================== */
+const CTX = 3;      // context length: how many previous words the model sees
+const D = 12;       // embedding size: numbers used to represent each word
+const H = 48;       // hidden layer width
+const PAD = ".";    // "." doubles as sentence boundary and as start-of-sentence padding
+
+let maxEpoch = 400;        // training auto-pauses when this many epochs are done
+let vocab = [];            // index -> word
+let w2i = new Map();       // word -> index
+let data = [];             // training examples: { x: [3 word ids], y: next word id }
+let net = null;            // the weights (see initNet)
+let losses = [];           // average loss of each epoch, drawn by drawLoss()
+let training = true;       // is the training loop currently running?
+let epoch = 0;             // completed passes over the whole dataset
+let coords = [];           // cached 3D PCA coordinates of every word
+
+// Approximately Gaussian random number (sum of three uniforms, centred and
+// scaled). Used for weight initialisation; exact distribution is unimportant.
+const rnd = () => (Math.random() + Math.random() + Math.random() - 1.5) * 0.8;
+// Lower-case word tokenizer: words (with apostrophes) and single punctuation marks.
+const wordTokens = text => text.toLowerCase().match(/[a-z']+|[.,!?]/g) || [];
+
+// Turn the corpus text into a vocabulary and a list of (context -> next word)
+// training examples.
+function buildData() {
+  const toks = wordTokens($("corpus").value);
+  vocab = [...new Set([PAD, ...toks])].sort();
+  w2i = new Map(vocab.map((w, i) => [w, i]));
+  data = [];
+  // `hist` is the sliding window of the previous CTX word ids. It starts as
+  // all padding, so the first word of a sentence is predicted from "...".
+  let hist = Array(CTX).fill(w2i.get(PAD));
+  for (const t of toks) {
+    const y = w2i.get(t);
+    data.push({ x: hist.slice(), y });               // slice() = copy the window
+    // A "." ends the sentence, so reset the window; otherwise slide it
+    // forward by dropping the oldest word and appending the new one.
+    hist = t === "." ? Array(CTX).fill(w2i.get(PAD)) : [...hist.slice(1), y];
+  }
+}
+
+// Create randomly initialised weights. Scaling by 1/sqrt(fan_in) keeps the
+// magnitude of activations roughly constant from layer to layer, which makes
+// early training stable.
+function initNet() {
+  const V = vocab.length;
+  // mat(r, c, s): r rows of c random numbers, each multiplied by s.
+  const mat = (r, c, s) => Array.from({ length: r }, () => Float64Array.from({ length: c }, () => rnd() * s));
+  net = {
+    E:  mat(V, D, 0.5),                                   // embedding table: one D-vector per word
+    W1: mat(H, CTX * D, 1 / Math.sqrt(CTX * D)),          // hidden layer weights (H x CTX*D)
+    b1: new Float64Array(H),                              // hidden layer biases
+    W2: mat(V, H, 1 / Math.sqrt(H)),                      // output layer weights (V x H)
+    b2: new Float64Array(V),                              // output layer biases
+  };
+  losses = []; epoch = 0;
+}
+
+// FORWARD PASS: given CTX word ids, compute the model's raw scores (logits)
+// for every possible next word. Returns the intermediate values too, because
+// the backward pass (trainStep) needs them.
+function forward(ctx) {
+  const V = vocab.length, x = new Float64Array(CTX * D);
+  // Embedding lookup: copy each context word's vector into its slot of x.
+  ctx.forEach((w, i) => x.set(net.E[w], i * D));
+  // Hidden layer: h = tanh(W1 . x + b1). tanh squashes to (-1, 1) and is the
+  // non-linearity that lets the network learn more than a linear function.
+  const h = new Float64Array(H);
+  for (let j = 0; j < H; j++) {
+    let s = net.b1[j]; const row = net.W1[j];
+    for (let i = 0; i < x.length; i++) s += row[i] * x[i];
+    h[j] = Math.tanh(s);
+  }
+  // Output layer: z = W2 . h + b2. One logit per vocabulary word; higher =
+  // "more likely to come next". Not yet probabilities.
+  const z = new Float64Array(V);
+  for (let v = 0; v < V; v++) {
+    let s = net.b2[v]; const row = net.W2[v];
+    for (let j = 0; j < H; j++) s += row[j] * h[j];
+    z[v] = s;
+  }
+  return { x, h, z };
+}
+
+// Softmax with temperature: turns logits into probabilities that sum to 1.
+//   p_i = exp(z_i / T) / sum_j exp(z_j / T)
+// T < 1 sharpens the distribution, T > 1 flattens it, T = 1 is the plain
+// softmax used in training. We subtract the max logit first: it doesn't
+// change the result mathematically but prevents exp() from overflowing.
+function softmax(z, T = 1) {
+  let m = -Infinity; for (const v of z) if (v > m) m = v;
+  const p = new Float64Array(z.length); let s = 0;
+  for (let i = 0; i < z.length; i++) { p[i] = Math.exp((z[i] - m) / T); s += p[i]; }
+  for (let i = 0; i < p.length; i++) p[i] /= s;
+  return p;
+}
+
+// ONE TRAINING STEP on a single example: forward pass, compute the loss,
+// backpropagate gradients layer by layer, and immediately apply a gradient
+// descent update  w <- w - lr * dLoss/dw  to every weight involved.
+// Returns the loss so the caller can average it for the chart.
+function trainStep(ex, lr) {
+  const V = vocab.length, { x, h, z } = forward(ex.x), p = softmax(z);
+
+  // Cross-entropy loss: -log of the probability given to the right answer.
+  // (1e-12 avoids log(0).) Perfect prediction -> 0; uniform guess -> log(V).
+  const loss = -Math.log(p[ex.y] + 1e-12);
+
+  // BACKWARD PASS, step 1: gradient of the loss w.r.t. the logits.
+  // For softmax + cross-entropy this simplifies beautifully to (p - onehot):
+  // subtract 1 from the probability of the correct word, leave the rest.
+  // We overwrite p in place, so from here on p[v] means dLoss/dz[v].
+  p[ex.y] -= 1;
+
+  // Step 2: output layer. For each word v:
+  //   dLoss/dW2[v][j] = dz[v] * h[j]     (weight gradient)
+  //   dLoss/db2[v]    = dz[v]            (bias gradient)
+  //   dLoss/dh[j]    += dz[v] * W2[v][j] (gradient flowing back into h)
+  // dh must use W2 *before* it is updated, so accumulate dh first, then step.
+  const dh = new Float64Array(H);
+  for (let v = 0; v < V; v++) {
+    const g = p[v], row = net.W2[v];
+    for (let j = 0; j < H; j++) { dh[j] += row[j] * g; row[j] -= lr * g * h[j]; }
+    net.b2[v] -= lr * g;
+  }
+
+  // Step 3: hidden layer. Chain rule through tanh: d tanh(a)/da = 1 - tanh(a)^2
+  // = 1 - h^2, so da = dh * (1 - h^2). Then, same pattern as above:
+  //   dLoss/dW1[j][i] = da[j] * x[i],  dLoss/db1[j] = da[j],
+  //   dLoss/dx[i]    += da[j] * W1[j][i]  (gradient flowing back into inputs)
+  const dx = new Float64Array(CTX * D);
+  for (let j = 0; j < H; j++) {
+    const da = dh[j] * (1 - h[j] * h[j]), row = net.W1[j];
+    for (let i = 0; i < dx.length; i++) { dx[i] += row[i] * da; row[i] -= lr * da * x[i]; }
+    net.b1[j] -= lr * da;
+  }
+
+  // Step 4: embeddings. x was just a copy of embedding rows, so the gradient
+  // dx is split back into CTX slices and applied to those words' vectors.
+  // This is how word meaning is learned: words that lead to similar next
+  // words receive similar updates and drift toward each other.
+  ex.x.forEach((w, i) => { const e = net.E[w]; for (let d = 0; d < D; d++) e[d] -= lr * dx[i * D + d]; });
+  return loss;
+}
+
+// One EPOCH = one pass over every training example, in random order
+// (shuffling avoids the model over-fitting to the order of the corpus).
+// The learning rate decays slowly (x0.985 per epoch, floor 0.01): big steps
+// early to learn quickly, small steps later to settle into a minimum.
+function trainEpoch() {
+  const lr = Math.max(0.01, 0.06 * Math.pow(0.985, epoch));
+  const order = data.map((_, i) => i).sort(() => Math.random() - 0.5);
+  let tot = 0;
+  for (const i of order) tot += trainStep(data[i], lr);
+  losses.push(tot / data.length); epoch++;             // record mean loss for the chart
+}
+
+// MAIN ANIMATION LOOP, called once per screen refresh (~60x/second).
+//  - drawEmb() runs every frame so the 3D plot keeps rotating/responding to drags.
+//  - While training, we run epochs for at most ~12 ms per frame so the page
+//    stays responsive (a frame is ~16 ms), then redraw the charts.
+function loop() {
+  drawEmb();
+  if (training && net) {
+    const t0 = performance.now();
+    // Run epochs until the 12 ms budget is spent, but break every 5 epochs
+    // so the chart updates at a steady pace on fast machines too.
+    while (performance.now() - t0 < 12) { trainEpoch(); if (epoch % 5 === 0) break; }
+    if (epoch >= maxEpoch) { training = false; updateTrainBtn(); }   // shows "Train more"
+    drawTraining(); onDistChange();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* =====================================================================
+ * CANVAS RENDERING
+ * ---------------------------------------------------------------------
+ * A <canvas> has two sizes: the CSS size (layout pixels) and the bitmap
+ * size (real device pixels). On high-DPI screens the bitmap must be larger
+ * than the CSS size, or everything looks blurry.
+ * ===================================================================== */
+
+// Prepare a canvas for drawing and return { g, w, h }: the 2D context plus
+// the drawing area size in CSS pixels. After this call you draw using CSS
+// pixel coordinates and the transform scales them up to device pixels.
+function fitCanvas(c) {
+  const dpr = window.devicePixelRatio || 1;
+  // Remember the intended CSS height the first time, and pin it with an
+  // inline style. Setting c.height below changes the `height` ATTRIBUTE,
+  // which would otherwise feed back into the layout and make the canvas
+  // grow a little on every frame on high-DPI screens.
+  if (!c.dataset.h) { c.dataset.h = c.getAttribute("height"); c.style.height = c.dataset.h + "px"; }
+  const h = +c.dataset.h, r = c.getBoundingClientRect();   // r.width = current CSS width
+  // Only resize the bitmap when needed: assigning width/height clears the canvas.
+  if (c.width !== Math.round(r.width * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(r.width * dpr); c.height = Math.round(h * dpr); }
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);  // 1 unit = 1 CSS pixel
+  return { g, w: r.width, h };
+}
+
+// Draw the training-loss line chart.
+function drawLoss() {
+  // offsetParent is null when the element (or an ancestor) is display:none,
+  // i.e. when its tab is hidden. A hidden canvas has width 0, so skip it.
+  if (!$("lossCanvas").offsetParent) return;
+  const { g, w, h } = fitCanvas($("lossCanvas"));
+  g.clearRect(0, 0, w, h);
+  const pad = 30;                                   // left margin for the y-axis labels
+  g.strokeStyle = "#2b3444"; g.fillStyle = "#8b96aa"; g.font = "11px system-ui";
+  if (!losses.length) return;
+  // The y-axis runs from 0 (bottom) to the largest loss seen (top).
+  const maxL = Math.max(...losses), minL = 0;
+  // Five horizontal grid lines with their loss value labelled on the left.
+  for (let i = 0; i <= 4; i++) {
+    const y = pad / 2 + (h - pad * 1.5) * i / 4, v = maxL - (maxL - minL) * i / 4;
+    g.beginPath(); g.moveTo(pad, y); g.lineTo(w - 8, y); g.stroke();
+    g.fillText(v.toFixed(2), 2, y + 4);
+  }
+  // The loss curve: x = epoch index spread across the width, y = loss mapped
+  // linearly into the plot area (canvas y grows downward, hence 1 - fraction).
+  g.strokeStyle = "#6ea8fe"; g.lineWidth = 2; g.beginPath();
+  const n = Math.max(losses.length - 1, 1);         // avoid dividing by zero with one point
+  losses.forEach((l, i) => {
+    const x = pad + (w - pad - 8) * i / n, y = pad / 2 + (h - pad * 1.5) * (1 - (l - minL) / (maxL - minL));
+    i ? g.lineTo(x, y) : g.moveTo(x, y);
+  });
+  g.stroke(); g.lineWidth = 1;
+  g.fillStyle = "#8b96aa"; g.fillText(msg("epoch") + " " + epoch, w - 70, h - 6);
+}
+
+/* =====================================================================
+ * 3D EMBEDDING VIEW
+ * ---------------------------------------------------------------------
+ * Each word is a point in D = 12 dimensions, which we can't draw. PCA
+ * (principal component analysis) finds the 3 directions along which the
+ * points vary most, and we plot each word's coordinates along them. The 3D
+ * scene is then rendered by hand: rotate, apply perspective, sort by depth.
+ * ===================================================================== */
+
+// Project every word embedding onto its top-3 principal components.
+// Returns one [x, y, z] per word, each scaled into the range [-1, 1].
+function pca3() {
+  // 1) Centre the data: subtract the mean vector so the cloud is around 0.
+  const V = vocab.length, mean = Array(D).fill(0);
+  net.E.forEach(e => e.forEach((v, d) => mean[d] += v / V));
+  const X = net.E.map(e => Array.from(e, (v, d) => v - mean[d]));
+  // 2) Find the principal components with POWER ITERATION. Repeatedly
+  //    multiplying a vector v by the covariance matrix (X^T X) rotates it
+  //    toward the direction of greatest variance. We never build the matrix:
+  //    X^T (X v) is computed row by row (d = r . v, then nv += r * d).
+  const comps = [];
+  for (let c = 0; c < 3; c++) {
+    // Deterministic starting vector (different per component) so the plot
+    // doesn't jump around randomly between updates.
+    let v = Array.from({ length: D }, (_, i) => Math.sin(i + 1 + c));
+    for (let it = 0; it < 40; it++) {
+      const nv = Array(D).fill(0);
+      for (const r of X) { let d = 0; for (let i = 0; i < D; i++) d += r[i] * v[i]; for (let i = 0; i < D; i++) nv[i] += r[i] * d; }
+      // Gram-Schmidt: remove the parts pointing along components already found,
+      // so component 2 is perpendicular to 1, and 3 to both.
+      for (const u of comps) { let d = 0; for (let i = 0; i < D; i++) d += nv[i] * u[i]; for (let i = 0; i < D; i++) nv[i] -= d * u[i]; }
+      const n = Math.hypot(...nv) || 1; v = nv.map(x => x / n);       // renormalise to length 1
+    }
+    comps.push(v);
+  }
+  // 3) Coordinates = dot product of each centred embedding with each component.
+  const P = X.map(r => comps.map(u => r.reduce((s, x, i) => s + x * u[i], 0)));
+  // 4) Scale everything by the largest absolute value so the cloud fits in a unit cube.
+  const m = Math.max(...P.flat().map(Math.abs)) || 1;
+  return P.map(r => r.map(x => x / m));
+}
+
+// Camera state. yaw = spin around the vertical axis, pitch = tilt up/down (radians).
+// zoom = magnification of the whole scene (1 = default; see ZOOM_MIN/ZOOM_MAX).
+// `drag` is truthy while the user is interacting (it pauses auto-rotation).
+// `coordsEpoch` records which epoch `coords` was computed for (avoids recomputing PCA every frame).
+const view = { yaw: 0.6, pitch: 0.35, zoom: 1, drag: null, coordsEpoch: -1 };
+const ZOOM_MIN = 0.4, ZOOM_MAX = 6;
+// Multiply the zoom by `factor`, clamped to the allowed range. Multiplying
+// (rather than adding) makes every wheel notch / button press feel like the
+// same relative change no matter how far in or out you already are.
+const zoomBy = factor => { view.zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, view.zoom * factor)); };
+const resetView = () => { view.yaw = 0.6; view.pitch = 0.35; view.zoom = 1; };
+
+// Draw the rotating 3D scatter plot. Called every animation frame.
+function drawEmb() {
+  const c = $("embCanvas");
+  if (!c.offsetParent || !net) return;              // tab hidden or nothing trained yet
+  const { g, w, h } = fitCanvas(c);
+  g.clearRect(0, 0, w, h);
+  // PCA is comparatively expensive, so only redo it when the weights have
+  // changed (a new epoch), not on every rotation frame.
+  if (view.coordsEpoch !== epoch) { coords = pca3(); view.coordsEpoch = epoch; }
+  // Auto-rotation: nudge the yaw a little each frame unless the user is dragging.
+  if ($("autoRot").checked && !view.drag) view.yaw += 0.006;
+
+  // Precompute sines/cosines of the camera angles once per frame.
+  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const R = Math.min(w, h) * 0.42 * view.zoom;      // pixel size of the unit cube's half-width, scaled by zoom
+  const cam = 3.2;                                  // camera distance from the origin (in cube units)
+
+  // proj(): map a 3D point in [-1,1]^3 to screen space.
+  //   1. rotate around the Y axis by yaw   (x, z change)
+  //   2. rotate around the X axis by pitch (y, z change)
+  //   3. perspective divide: points closer to the camera (larger z) get a
+  //      scale factor k > 1 and appear larger and farther from the centre.
+  // Returns screen x/y, the rotated depth z (for sorting/fading) and the scale k.
+  const proj = ([x, y, z]) => {
+    const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;        // yaw
+    const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;       // pitch
+    const k = cam / (cam - z2);                               // perspective
+    return { x: w / 2 + x1 * R * k, y: h / 2 + y2 * R * k, z: z2, k };
+  };
+
+  // Draw the three coordinate axes (PC1 red, PC2 green, PC3 blue) as lines
+  // through the origin with a label at the positive end. "66" appended to the
+  // hex colour is 40% alpha, so the axes stay subtle behind the points.
+  g.lineWidth = 1;
+  [["#ef6b73", [1, 0, 0], "PC1"], ["#5fd39a", [0, 1, 0], "PC2"], ["#6ea8fe", [0, 0, 1], "PC3"]].forEach(([col, v, name]) => {
+    const a = proj(v.map(t => -t)), b = proj(v);
+    g.strokeStyle = col + "66"; g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+    g.fillStyle = col; g.font = "10px system-ui"; g.fillText(name, b.x + 3, b.y);
+  });
+
+  // Project all words, then sort far-to-near (ascending z) — the "painter's
+  // algorithm": drawing the far points first lets near points overlap them
+  // correctly without needing a depth buffer.
+  const hl = w2i.get($("nnInput").value.toLowerCase().trim());   // word to highlight, if valid
+  const pts = vocab.map((word, i) => ({ word, i, ...proj(coords[i]) })).sort((a, b) => a.z - b.z);
+  g.textAlign = "center";
+  for (const p of pts) {
+    // Depth cue: fade distant points. z is about -1 (far) .. +1 (near).
+    const depth = (p.z + 1) / 2;                              // 0 = far, 1 = near
+    g.globalAlpha = 0.35 + 0.65 * Math.min(1, Math.max(0, depth));
+    g.fillStyle = chipColor(p.word);
+    // Dot radius and label size both grow with the perspective factor k.
+    g.beginPath(); g.arc(p.x, p.y, 2 + 2.5 * p.k, 0, 7); g.fill();   // 7 > 2*PI: a full circle
+    g.font = `${Math.round(9 + 4 * p.k)}px system-ui`;
+    g.fillText(p.word, p.x, p.y - 7);
+    // Orange ring around the word typed in the "Nearest words to" box.
+    if (p.i === hl) { g.globalAlpha = 1; g.strokeStyle = "#f5a962"; g.lineWidth = 2; g.beginPath(); g.arc(p.x, p.y, 9, 0, 7); g.stroke(); g.lineWidth = 1; }
+  }
+  g.globalAlpha = 1; g.textAlign = "start";                  // restore defaults for the next draw
+}
+
+// Mouse/touch interaction with the 3D plot:
+//   - one pointer dragging      -> rotate (yaw/pitch)
+//   - two pointers (pinch)      -> zoom by the change in finger distance
+//   - mouse wheel / trackpad    -> zoom
+//   - double-click              -> reset rotation and zoom
+// Pointer events unify mouse, touch and pen. setPointerCapture keeps delivering
+// move events to the canvas even if the pointer leaves it mid-drag.
+// touch-action:none stops the browser from scrolling/zooming the page itself.
+(function () {
+  const c = $("embCanvas");
+  c.style.cursor = "grab"; c.style.touchAction = "none";
+  const ptrs = new Map();          // active pointers: pointerId -> {x, y}
+  let pinchDist = 0;               // distance between the two pinch fingers at the last event
+  const dist = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+
+  c.addEventListener("pointerdown", e => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    c.setPointerCapture(e.pointerId); c.style.cursor = "grabbing";
+    if (ptrs.size === 2) pinchDist = dist();          // second finger down: start a pinch
+    view.drag = true;                                 // pauses auto-rotation while interacting
+  });
+  c.addEventListener("pointermove", e => {
+    const p = ptrs.get(e.pointerId);
+    if (!p) return;
+    if (ptrs.size === 1) {
+      // Horizontal movement spins (yaw); vertical movement tilts (pitch, clamped
+      // just under +/-90 degrees so the scene can't flip upside down).
+      view.yaw += (e.clientX - p.x) * 0.01;
+      view.pitch = Math.max(-1.5, Math.min(1.5, view.pitch + (e.clientY - p.y) * 0.01));
+    }
+    p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 2) {
+      // Pinch: zoom by the ratio of the new finger distance to the old one.
+      const d = dist();
+      if (pinchDist > 0) zoomBy(d / pinchDist);
+      pinchDist = d;
+    }
+  });
+  const end = e => {
+    ptrs.delete(e.pointerId);
+    if (ptrs.size === 0) { view.drag = null; c.style.cursor = "grab"; }
+  };
+  c.addEventListener("pointerup", end); c.addEventListener("pointercancel", end);
+
+  // Wheel zoom. deltaY is positive when scrolling down/away, which should zoom
+  // out; exp() turns the linear wheel delta into a smooth multiplicative factor.
+  // The listener must be non-passive so preventDefault() can stop the page from
+  // scrolling while the pointer is over the plot.
+  c.addEventListener("wheel", e => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+  c.addEventListener("dblclick", resetView);
+  $("zoomIn").onclick = () => zoomBy(1.25);
+  $("zoomOut").onclick = () => zoomBy(1 / 1.25);
+  $("zoomReset").onclick = resetView;
+})();
+
+// Nearest words by COSINE SIMILARITY of their embeddings:
+//   cos(a, b) = (a . b) / (|a| |b|)     (1 = same direction, 0 = unrelated)
+// Returns the top n [word, similarity] pairs, or null if the word is unknown.
+function neighbors(word, n = 6) {
+  const i = w2i.get(word.toLowerCase().trim());
+  if (i === undefined) return null;
+  const a = net.E[i], na = Math.hypot(...a);
+  return vocab.map((v, j) => {
+    const b = net.E[j]; let d = 0; for (let k = 0; k < D; k++) d += a[k] * b[k];
+    return [v, d / (na * Math.hypot(...b) + 1e-9)];       // 1e-9 guards against /0
+  }).filter((_, j) => j !== i).sort((p, q) => q[1] - p[1]).slice(0, n);   // exclude the word itself
+}
+
+// Refresh the parts of the UI that depend on the current weights: the loss
+// chart, the stats line, the nearest-neighbour list, and the attention map.
+// (The 3D plot has its own per-frame redraw in loop().)
+function drawTraining() {
+  drawLoss();
+  const l = losses[losses.length - 1];
+  // Perplexity = exp(loss): "the model is as unsure as if it were choosing
+  // uniformly among this many words". 1 = certain; vocab size = pure guessing.
+  $("trainStats").innerHTML = l === undefined ? "" :
+    msg("trainStats")(epoch, fmt(l, 3), fmt(Math.exp(l), 1), vocab.length, data.length);
+  const nn = neighbors($("nnInput").value);
+  $("nnOut").textContent = nn ? nn.map(([w, s]) => `${w} (${fmt(s, 2)})`).join(", ") : msg("unknownWord");
+  drawAttention();
+}
+
+/* =====================================================================
+ * 3. ATTENTION HEATMAP
+ * ---------------------------------------------------------------------
+ * Scaled dot-product self-attention:
+ *     weights = softmax( Q K^T / sqrt(d) )
+ * Row i = the token "looking"; column j = the token "being looked at";
+ * each row sums to 1. Here Q = K = the trained embeddings (no learned
+ * projection matrices), so it is an illustration, not a real transformer.
+ * ===================================================================== */
+function drawAttention() {
+  const c = $("attCanvas");
+  if (!c.offsetParent) return;
+  // Only use words the model knows, capped at 16 so the grid stays readable.
+  const toks = wordTokens($("attInput").value).filter(t => w2i.has(t)).slice(0, 16);
+  const T = +$("attTemp").value, causal = $("causal").checked;
+  $("attTempVal").textContent = fmt(T, 1);
+  const { g, w, h } = fitCanvas(c);
+  g.clearRect(0, 0, w, h);
+  const n = toks.length; if (!n) return;
+  // Grid geometry: `left`/`top` leave room for row/column labels; each cell is
+  // at most 40 px and shrinks to fit when there are many tokens.
+  const left = 70, top = 70, cw = Math.min(40, (w - left - 10) / n), ch = Math.min(40, (h - top - 10) / n);
+  const E = toks.map(t => net.E[w2i.get(t)]);           // one embedding vector per token
+  // Column labels: rotated 60 degrees so they don't overlap. save/restore
+  // confines the translate+rotate to this one label.
+  g.font = "12px system-ui"; g.fillStyle = "#e4e8f0";
+  toks.forEach((t, j) => { g.save(); g.translate(left + j * cw + cw / 2, top - 6); g.rotate(-Math.PI / 3); g.fillText(t, 0, 0); g.restore(); });
+  toks.forEach((t, i) => {
+    // Row label on the left.
+    g.textAlign = "right"; g.fillStyle = "#e4e8f0"; g.fillText(t, left - 6, top + i * ch + ch / 2 + 4); g.textAlign = "start";
+    // Raw attention scores of token i against every token j: scaled dot
+    // product of the two embeddings. Dividing by sqrt(D) keeps the scores from
+    // growing with dimension. With the causal mask, future tokens (j > i)
+    // get -Infinity so softmax gives them exactly zero weight.
+    const sc = E.map((e, j) => {
+      if (causal && j > i) return -Infinity;
+      let d = 0; for (let k = 0; k < D; k++) d += E[i][k] * e[k];
+      return d / Math.sqrt(D);
+    });
+    // Softmax over the row. The "Sharpness" slider acts as an inverse
+    // temperature (softmax divides by T, and we pass 1/T). -Infinity is
+    // swapped for a big negative number since it can't go through arithmetic safely.
+    const p = softmax(sc.map(v => v === -Infinity ? -1e9 : v), 1 / T);
+    p.forEach((a, j) => {
+      const masked = causal && j > i;
+      // Colour intensity = attention weight. A 0.08 floor keeps zero-weight
+      // cells faintly visible; masked cells are drawn almost black.
+      g.fillStyle = masked ? "#151a23" : `rgba(110,168,254,${0.08 + 0.92 * a})`;
+      g.fillRect(left + j * cw, top + i * ch, cw - 1, ch - 1);   // -1 leaves a thin gap = grid line
+      // Print the number inside the cell for weights above 0.12 ("0.47" -> ".47").
+      if (!masked && a > 0.12) { g.fillStyle = "#0b0f16"; g.font = "10px system-ui"; g.textAlign = "center"; g.fillText(a.toFixed(2).slice(1), left + j * cw + cw / 2, top + i * ch + ch / 2 + 3); g.textAlign = "start"; g.font = "12px system-ui"; }
+    });
+  });
+}
+
+/* =====================================================================
+ * 4. SAMPLING / TEXT GENERATION
+ * ---------------------------------------------------------------------
+ * An LLM generates text one token at a time:
+ *   1. run the model on the text so far -> probability for every word
+ *   2. reshape that distribution (temperature, top-k, top-p)
+ *   3. randomly pick one word according to the probabilities
+ *   4. append it and repeat
+ * ===================================================================== */
+let genTokens = [];    // the prompt plus everything generated so far, as words
+let promptLen = 0;     // how many of genTokens came from the prompt (shown in white, rest orange)
+
+// Build the model's input window (last CTX word ids) from genTokens, using
+// the same sentence-boundary rule as buildData().
+function currentCtx() {
+  let hist = Array(CTX).fill(w2i.get(PAD));
+  for (const t of genTokens) hist = t === "." ? Array(CTX).fill(w2i.get(PAD)) : [...hist.slice(1), w2i.get(t)];
+  return hist;
+}
+
+// Compute the next-word distribution after applying the sampling settings.
+// Returns:
+//   p    - probabilities after temperature (all words)
+//   idx  - word ids sorted from most to least likely
+//   keep - Set of word ids that survive top-k / top-p filtering
+//   z    - total probability mass of the kept words (for renormalising)
+function filteredDist() {
+  const T = +$("temp").value, k = +$("topk").value, pth = +$("topp").value;
+  // Temperature is applied inside softmax: logits / T.
+  const p = softmax(forward(currentCtx()).z, T);
+  const idx = [...p.keys()].sort((a, b) => p[b] - p[a]);
+  const keep = new Set(); let cum = 0;
+  // Walk down the ranking, keeping words until we hit either limit:
+  //   top-k: stop after k words
+  //   top-p (nucleus): stop once the kept words' probabilities add up to >= p
+  for (let r = 0; r < idx.length; r++) {
+    if (r >= k) break;
+    keep.add(idx[r]); cum += p[idx[r]];
+    if (cum >= pth) break;
+  }
+  // Sum of the kept probabilities: dividing by it renormalises to total 1.
+  let z = 0; keep.forEach(i => z += p[i]);
+  return { idx, p, keep, z };
+}
+
+// Show the text so far. Punctuation is attached to the previous word; words
+// generated by the model get the "gen" class (orange), prompt words don't.
+function renderOut() {
+  const parts = genTokens.map((t, i) => {
+    const sp = (i === 0 || t === "," || t === "." || t === "!" || t === "?") ? "" : " ";
+    return `${sp}<span class="${i >= promptLen ? "gen" : ""}">${esc(t)}</span>`;
+  });
+  $("out").innerHTML = parts.join("") || `<span class='stats'>${msg("emptyPrompt")}</span>`;
+}
+
+// Draw the 12 most likely next words as horizontal bars. Kept words show their
+// renormalised probability; filtered words are greyed out and marked "cut".
+// Each bar carries data-w so a click can force that word (see the click handler).
+function renderBars() {
+  const { idx, p, keep, z } = filteredDist();
+  $("bars").innerHTML = idx.slice(0, 12).map(i => {
+    const kept = keep.has(i), pr = kept ? p[i] / z : 0;
+    return `<div class="bar ${kept ? "" : "cut"}" data-w="${esc(vocab[i])}"><span class="name">${esc(vocab[i])}</span><div class="track"><div class="fill" style="width:${(kept ? pr : p[i]) * 100}%"></div></div><span class="pct">${kept ? fmt(pr * 100, 1) + "%" : msg("cut")}</span></div>`;
+  }).join("");
+}
+
+// Randomly pick the next word in proportion to its probability among the kept
+// words ("roulette wheel" sampling): draw r uniformly in [0, total mass), then
+// subtract each word's probability until r drops to <= 0; that word wins.
+// `pick = i` inside the loop is a fallback against floating-point rounding.
+function sampleNext() {
+  const { p, keep, z } = filteredDist();
+  let r = Math.random() * z, pick = null;
+  for (const i of keep) { r -= p[i]; if (r <= 0) { pick = i; break; } pick = i; }
+  genTokens.push(vocab[pick]);
+}
+
+// Restart generation from whatever is in the prompt box (unknown words are dropped).
+function resetPrompt() {
+  genTokens = wordTokens($("prompt").value).filter(t => w2i.has(t));
+  promptLen = genTokens.length; refreshGen();
+}
+function refreshGen() { renderOut(); renderBars(); }
+// Called when a sampling slider moves (and during training, since the
+// distribution changes as the weights change): update the slider read-outs
+// (showing "off" for the no-op extremes) and redraw the bars.
+function onDistChange() {
+  $("tempVal").textContent = fmt(+$("temp").value, 2);
+  $("topkVal").textContent = +$("topk").value >= +$("topk").max ? msg("off") : $("topk").value;
+  $("toppVal").textContent = +$("topp").value >= 1 ? msg("off") : fmt(+$("topp").value, 2);
+  renderBars();
+}
+
+/* =====================================================================
+ * WIRING: buttons, sliders, tabs and start-up
+ * ===================================================================== */
+
+// (Re)build everything from the corpus box: vocabulary, training data, fresh
+// random weights, BPE merges, and reset all the UI that depends on them.
+function retrain() {
+  buildData(); initNet(); maxEpoch = 400; merges = trainBPE($("corpus").value, 100);
+  $("mergeSlider").max = merges.length; $("mergeSlider").value = Math.min(30, merges.length);
+  renderTokens(); training = true; updateTrainBtn(); resetPrompt();
+  // Top-k slider spans 1..vocab size; its maximum means "no filtering".
+  $("topk").max = vocab.length; $("topk").value = vocab.length;
+}
+$("tokInput").oninput = $("mergeSlider").oninput = renderTokens;
+// Pause / resume. If training had reached maxEpoch, "Train more" grants 200 more epochs.
+$("trainBtn").onclick = () => { training = !training; if (training && epoch >= maxEpoch) maxEpoch = epoch + 200; updateTrainBtn(); };
+$("resetBtn").onclick = retrain;
+$("nnInput").oninput = $("attInput").oninput = $("attTemp").oninput = $("causal").onchange = drawTraining;
+$("prompt").oninput = resetPrompt;
+$("temp").oninput = $("topk").oninput = $("topp").oninput = onDistChange;
+$("stepBtn").onclick = () => { sampleNext(); refreshGen(); };
+$("gen20Btn").onclick = () => { for (let i = 0; i < 20; i++) sampleNext(); refreshGen(); };
+$("clearBtn").onclick = resetPrompt;
+// Event delegation: one listener on the bar container; clicking any bar
+// appends that word, overriding the random choice.
+$("bars").onclick = e => { const b = e.target.closest(".bar"); if (b) { genTokens.push(b.dataset.w); refreshGen(); } };
+window.addEventListener("resize", drawTraining);      // canvases must be re-fitted to the new width
+
+// Tabs: only one <section> is visible at a time. Hidden canvases can't be
+// measured, so we redraw right after switching. The chosen tab is remembered
+// in localStorage (wrapped in try/catch because storage can be blocked).
+const sections = [...document.querySelectorAll("section")];
+const names = msg("tabs");                             // captions are refreshed by setLang()
+function showTab(n) {
+  sections.forEach((sec, i) => sec.hidden = i !== n);
+  [...$("tabs").children].forEach((b, i) => b.classList.toggle("on", i === n));
+  try { localStorage.setItem("llmTab", n); } catch (e) {}
+  drawTraining();
+}
+names.forEach((t, i) => { const b = document.createElement("button"); b.textContent = t; b.onclick = () => showTab(i); $("tabs").appendChild(b); });
+
+// Language switch buttons in the header (EN / PL).
+document.querySelectorAll(".lang button").forEach(b => { b.onclick = () => setLang(b.dataset.lang); });
+
+// START-UP: build the model, restore the last tab and language, and start the
+// frame loop. setLang() must run after retrain() because it re-renders
+// everything that depends on the trained network.
+retrain();
+let startTab = 0; try { startTab = +localStorage.getItem("llmTab") || 0; } catch (e) {}
+showTab(startTab);
+let startLang = "en"; try { startLang = localStorage.getItem("llmLang") === "pl" ? "pl" : "en"; } catch (e) {}
+setLang(startLang);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
