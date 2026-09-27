@@ -208,6 +208,15 @@
         <li><strong>Sharpness</strong> multiplies the scores before the softmax. High values concentrate almost all weight on the single best match; low values spread it out.</li>
         <li>Each token tends to attend most to itself and to earlier copies of the same word (such as "the"), because identical embeddings have the highest dot product.</li>
       </ul>
+      <h3>What multiple heads actually buy you</h3>
+      <p>A single softmax row can only produce one weighted mix per token, so with one head the pronoun "it" could track either the subject or the nearest noun, but not both at once. A real attention layer runs several heads in parallel, each with its own learned query/key/value matrices, and each is free to specialise on a different relationship.</p>
+      <ul>
+        <li>The model's vector is split into equal slices, one per head (for example, 768 dimensions split into 12 heads of 64 each), so adding heads does not add width or compute — each head just works with a narrower slice.</li>
+        <li>Every head computes its own full <code>Q·Kᵀ/√d</code> heatmap, like the one above, over its own slice, then produces its own weighted mix of <strong>value</strong> vectors.</li>
+        <li>The heads' outputs are concatenated back together and passed through one more learned matrix, letting the layer combine what each head found.</li>
+        <li>Trained models develop heads with interpretable jobs: researchers studying real transformers have found heads that mostly attend to the previous token, heads that track matching brackets or quotes, and <strong>induction heads</strong> that search for an earlier occurrence of the current token and copy whatever followed it — a mechanism believed to underlie a good deal of in-context learning.</li>
+      </ul>
+      <p>This tab draws the pattern that one head would produce. Picture a dozen or more such grids computed side by side per layer, each hunting for something different, stacked through dozens of layers.</p>
       <h3>What is simplified here</h3>
       <ul>
         <li>Real attention uses three separate learned matrices to make Q, K and V from each token. Here Q = K = the trained embeddings, and no values are mixed.</li>
@@ -407,6 +416,15 @@ const PL = {
         <li><strong>Ostrość</strong> mnoży wyniki przed softmaksem. Wysokie wartości skupiają prawie całą wagę na jednym najlepszym dopasowaniu; niskie rozkładają ją równomiernie.</li>
         <li>Każdy token zwykle zwraca największą uwagę na siebie samego i na wcześniejsze kopie tego samego słowa (np. „the”), bo identyczne osadzenia mają największy iloczyn skalarny.</li>
       </ul>
+      <h3>Co naprawdę dają dodatkowe głowice</h3>
+      <p>Jeden wiersz softmaksu może dać tylko jedną ważoną mieszankę na token, więc przy jednej głowicy zaimek „it” mógłby śledzić albo podmiot, albo najbliższy rzeczownik — nie oba naraz. Prawdziwa warstwa uwagi uruchamia równolegle kilka głowic, każda z własnymi uczonymi macierzami zapytania, klucza i wartości, i każda może wyspecjalizować się w innej zależności.</p>
+      <ul>
+        <li>Wektor modelu dzieli się na równe kawałki, po jednym na głowicę (np. 768 wymiarów podzielone na 12 głowic po 64), więc dodawanie głowic nie zwiększa szerokości ani liczby obliczeń — każda głowica dostaje po prostu węższy wycinek do pracy.</li>
+        <li>Każda głowica liczy własną, pełną mapę cieplną <code>Q·Kᵀ/√d</code>, taką jak powyżej, na swoim wycinku, a potem tworzy własną ważoną mieszankę wektorów <strong>wartości</strong>.</li>
+        <li>Wyjścia głowic są sklejane z powrotem w jeden wektor i przepuszczane przez kolejną uczoną macierz, która pozwala warstwie połączyć to, co znalazła każda głowica.</li>
+        <li>Wytrenowane modele wykształcają głowice o interpretowalnych zadaniach: badacze analizujący prawdziwe transformery znaleźli głowice, które niemal zawsze patrzą na poprzedni token, głowice śledzące pasujące nawiasy czy cudzysłowy, a także <strong>głowice indukcyjne</strong> (induction heads), które szukają wcześniejszego wystąpienia bieżącego tokenu i kopiują to, co po nim następowało — mechanizm uznawany za jeden z filarów uczenia się w locie (in-context learning).</li>
+      </ul>
+      <p>Ta zakładka rysuje wzór, jaki dałaby jedna głowica. Wyobraź sobie kilkanaście takich siatek liczonych równolegle w jednej warstwie, każdą szukającą czegoś innego, ułożonych przez dziesiątki warstw.</p>
       <h3>Co jest tu uproszczone</h3>
       <ul>
         <li>Prawdziwa uwaga używa trzech osobnych uczonych macierzy, aby z każdego tokenu zrobić Q, K i V. Tutaj Q = K = wyuczone osadzenia i żadne wartości nie są mieszane.</li>
