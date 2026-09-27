@@ -22,7 +22,8 @@
   /* Header row: title on the left, EN/PL language switch on the right. */
   .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   .lang { display: flex; gap: 4px; }
-  .lang button { padding: 4px 10px; font-size: 13px; }
+  .lang button { padding: 4px 10px; font-size: 13px; display: flex; align-items: center; gap: 5px; }
+  .lang svg { display: block; border-radius: 2px; box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
   section[hidden] { display: none; }
   section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 0; }
   section p.lead { color: var(--muted); margin: 0 0 10px; font-size: 14px; }
@@ -74,8 +75,23 @@
     <h1>Tiny LLM Lab</h1>
     <!-- Language switch. The buttons are wired up in the i18n section of the script. -->
     <div class="lang" role="group" aria-label="Language / Język">
-      <button data-lang="en" class="on" title="English">EN</button>
-      <button data-lang="pl" title="Polski">PL</button>
+      <button data-lang="en" class="on" title="English">
+        <svg aria-hidden="true" width="18" height="12" viewBox="0 0 60 40">
+          <rect width="60" height="40" fill="#012169"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="3.5"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="12"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="6"/>
+        </svg>
+        EN
+      </button>
+      <button data-lang="pl" title="Polski">
+        <svg aria-hidden="true" width="18" height="12" viewBox="0 0 60 40">
+          <rect width="60" height="20" fill="#fff"/>
+          <rect y="20" width="60" height="20" fill="#DC143C"/>
+        </svg>
+        PL
+      </button>
     </div>
   </header>
   <p class="sub" data-i18n="sub">A language model built from scratch in ~500 lines of JavaScript, running entirely in your browser. Each section shows one core idea behind models like GPT and Claude, at toy scale.</p>
